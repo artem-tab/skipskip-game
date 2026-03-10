@@ -1,573 +1,376 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Skip-Bo</title>
-<script src="/socket.io/socket.io.js"></script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;800&display=swap');
-
-:root {
-  --bg:#1a1a2e; --accent:#e94560; --gold:#f5a623; --green:#27ae60;
-  --blue:#2980b9; --text:#eaeaea; --dim:#7f8c8d;
-  --CW:48px; --CH:68px;
-}
-* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
-body { font-family:'Nunito',sans-serif; background:var(--bg); color:var(--text); height:100dvh; overflow:hidden; user-select:none; }
-
-.screen { display:none; }
-.screen.active { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100dvh; }
-
-#menuScreen { background:radial-gradient(ellipse at top,#0f3460 0%,#1a1a2e 70%); gap:14px; padding:24px; }
-.logo { font-family:'Fredoka One',cursive; font-size:56px; background:linear-gradient(135deg,#f5a623,#e94560); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-.logo-sub { font-size:12px; color:var(--dim); letter-spacing:3px; text-transform:uppercase; }
-.ig { width:100%; max-width:320px; display:flex; flex-direction:column; gap:10px; }
-.lbl { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:3px; }
-input[type=text] { width:100%; padding:13px 14px; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.15); border-radius:10px; color:var(--text); font-size:16px; font-family:'Nunito',sans-serif; outline:none; }
-input[type=text]:focus { border-color:var(--gold); }
-.stack-opts { display:flex; gap:8px; }
-.sopt { flex:1; padding:11px; background:rgba(255,255,255,.07); border:2px solid rgba(255,255,255,.15); border-radius:10px; color:var(--text); font-size:16px; font-family:'Fredoka One',cursive; cursor:pointer; text-align:center; }
-.sopt.sel { background:rgba(245,166,35,.2); border-color:var(--gold); color:var(--gold); }
-.btn { width:100%; max-width:320px; padding:15px; border:none; border-radius:10px; font-size:17px; font-family:'Fredoka One',cursive; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
-.btn:active { transform:scale(.96); }
-.btn-red { background:linear-gradient(135deg,#e94560,#c0392b); color:#fff; }
-.btn-blue { background:linear-gradient(135deg,#2196f3,#1565c0); color:#fff; }
-.btn-out { background:transparent; border:2px solid rgba(255,255,255,.25); color:var(--text); }
-.divider { width:100%; max-width:320px; display:flex; align-items:center; gap:10px; color:var(--dim); font-size:12px; }
-.divider::before,.divider::after { content:''; flex:1; height:1px; background:rgba(255,255,255,.1); }
-.rules-box { width:100%; max-width:320px; background:rgba(255,255,255,.04); border-radius:10px; padding:12px; font-size:12px; line-height:1.7; color:var(--dim); }
-.rules-box h4 { font-size:13px; color:var(--text); margin-bottom:5px; font-weight:800; }
-
-#onlineScreen { background:radial-gradient(ellipse at top,#0f3460,#1a1a2e); gap:12px; padding:24px; }
-.room-code-big { font-family:'Fredoka One',cursive; font-size:40px; letter-spacing:8px; color:var(--gold); background:rgba(245,166,35,.1); padding:10px 18px; border-radius:10px; border:1.5px solid rgba(245,166,35,.3); cursor:pointer; }
-.wait-box { background:rgba(33,150,243,.1); border:1.5px solid rgba(33,150,243,.3); border-radius:10px; padding:14px; text-align:center; width:100%; max-width:320px; }
-.wait-box p { font-size:13px; color:var(--dim); margin-top:8px; }
-.dots span { display:inline-block; width:5px; height:5px; background:var(--blue); border-radius:50%; animation:blink 1.2s infinite; }
-.dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
-@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
-
-#gameScreen { padding:0; background:#111827; justify-content:flex-start; height:100dvh; overflow:hidden; }
-#gameScreen.active { display:flex; }
-.gw { width:100%; max-width:480px; margin:0 auto; display:flex; flex-direction:column; height:100dvh; }
-
-.topbar { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:rgba(255,255,255,.04); border-bottom:1px solid rgba(255,255,255,.07); flex-shrink:0; }
-.tb-title { font-family:'Fredoka One',cursive; font-size:19px; color:var(--gold); }
-.turn-pill { font-size:11px; font-weight:800; padding:4px 10px; border-radius:20px; background:rgba(39,174,96,.2); color:var(--green); border:1px solid var(--green); }
-.turn-pill.opp { background:rgba(233,69,96,.2); color:var(--accent); border-color:var(--accent); }
-.btn-sm { padding:5px 10px; font-size:12px; font-family:'Nunito',sans-serif; font-weight:700; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.2); border-radius:6px; color:var(--text); cursor:pointer; }
-
-.zone-opp { background:rgba(233,69,96,.06); border-bottom:2px solid rgba(233,69,96,.2); padding:7px 12px; flex-shrink:0; min-height:100px; }
-.zone-build { background:rgba(255,255,255,.02); border-bottom:1px solid rgba(255,255,255,.08); padding:7px 12px; flex-shrink:0; }
-.zone-me { background:rgba(39,174,96,.06); border-top:2px solid rgba(39,174,96,.2); padding:7px 12px; flex-shrink:0; min-height:100px; }
-.zone-hand { background:rgba(255,255,255,.02); padding:7px 12px 10px; flex:1; display:flex; flex-direction:column; justify-content:flex-end; }
-.hint-bar { background:rgba(245,166,35,.08); border-top:1px solid rgba(245,166,35,.15); border-bottom:1px solid rgba(245,166,35,.15); padding:5px 12px; font-size:12px; font-weight:700; color:var(--gold); text-align:center; flex-shrink:0; min-height:28px; }
-
-.zone-label { font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:var(--dim); margin-bottom:6px; font-weight:800; }
-.row { display:flex; align-items:center; gap:7px; }
-
-/* CARDS */
-.card { width:var(--CW); height:var(--CH); border-radius:7px; display:flex; align-items:center; justify-content:center; font-family:'Fredoka One',cursive; font-size:22px; border:2px solid rgba(255,255,255,.25); cursor:pointer; position:relative; flex-shrink:0; transition:transform .12s,box-shadow .12s; }
-.card:active { transform:scale(.91); }
-.card.sel { transform:translateY(-10px) scale(1.07) !important; border-color:var(--gold) !important; box-shadow:0 6px 20px rgba(245,166,35,.6) !important; z-index:20; }
-
-.c0{background:linear-gradient(135deg,#ff6b6b,#ee5a24);font-size:10px;font-family:'Nunito',sans-serif;font-weight:800;text-align:center;padding:4px;border-color:rgba(255,255,255,.35)!important}
-.c1{background:linear-gradient(135deg,#e74c3c,#c0392b)}
-.c2{background:linear-gradient(135deg,#e67e22,#d35400)}
-.c3{background:linear-gradient(135deg,#f39c12,#d68910);color:#1a1a1a}
-.c4{background:linear-gradient(135deg,#27ae60,#1e8449)}
-.c5{background:linear-gradient(135deg,#1abc9c,#148f77)}
-.c6{background:linear-gradient(135deg,#2980b9,#1a5276)}
-.c7{background:linear-gradient(135deg,#8e44ad,#6c3483)}
-.c8{background:linear-gradient(135deg,#e91e63,#ad1457)}
-.c9{background:linear-gradient(135deg,#00bcd4,#00838f)}
-.c10{background:linear-gradient(135deg,#ff5722,#bf360c)}
-.c11{background:linear-gradient(135deg,#546e7a,#37474f)}
-.c12{background:linear-gradient(135deg,#ffd700,#ffa000);color:#1a1a1a}
-
-.card-back { width:var(--CW); height:var(--CH); border-radius:7px; flex-shrink:0; background:repeating-linear-gradient(45deg,#1565c0 0,#1565c0 4px,#0d47a1 4px,#0d47a1 8px); border:2px solid rgba(255,255,255,.2); }
-.stack-wrap { position:relative; flex-shrink:0; width:var(--CW); height:var(--CH); }
-.badge { position:absolute; top:-7px; right:-7px; background:var(--accent); color:#fff; border-radius:50%; width:19px; height:19px; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; z-index:5; border:1.5px solid #111; }
-
-/* Discard ladder styles */
-.d-slot { width:var(--CW); flex-shrink:0; position:relative; cursor:pointer; }
-.d-slot:active .d-ladder { filter:brightness(.85); }
-.d-slot.glow .d-ladder-top { outline:2px solid var(--gold); outline-offset:1px; border-radius:8px; box-shadow:0 0 10px rgba(245,166,35,.5); }
-.d-slot-empty { width:var(--CW); height:var(--CH); border-radius:7px; border:1.5px dashed rgba(255,255,255,.2); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; color:rgba(255,255,255,.2); font-weight:700; cursor:pointer; transition:border-color .15s,box-shadow .15s; }
-.d-slot-empty.glow { border-color:var(--gold); box-shadow:0 0 10px rgba(245,166,35,.4); border-style:solid; }
-.d-slot-empty:active { transform:scale(.93); }
-.d-ladder { position:relative; width:var(--CW); }
-
-.b-slot { width:var(--CW); height:var(--CH); border-radius:7px; border:1.5px dashed rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; flex-shrink:0; transition:all .15s; background:rgba(255,255,255,.02); font-size:11px; color:rgba(255,255,255,.2); font-weight:700; overflow:hidden; }
-.b-slot.playable { border-color:var(--green)!important; border-style:solid; background:rgba(39,174,96,.12); box-shadow:0 0 12px rgba(39,174,96,.4); animation:gp 1.4s ease-in-out infinite; }
-.b-slot:active { transform:scale(.93); }
-.b-next { position:absolute; bottom:3px; left:0; right:0; text-align:center; font-size:9px; color:rgba(255,255,255,.3); font-weight:800; pointer-events:none; }
-@keyframes gp{0%,100%{box-shadow:0 0 8px rgba(39,174,96,.3)}50%{box-shadow:0 0 18px rgba(39,174,96,.65)}}
-
-.draw-mini { width:var(--CW); height:var(--CH); border-radius:7px; flex-shrink:0; background:linear-gradient(135deg,#4a148c,#6a1b9a); border:2px solid rgba(255,255,255,.2); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:rgba(255,255,255,.7); gap:2px; }
-.opp-hand { display:flex; gap:4px; margin-top:5px; }
-.opp-mini { width:24px; height:34px; border-radius:4px; background:repeating-linear-gradient(45deg,#1565c0 0,#1565c0 3px,#0d47a1 3px,#0d47a1 6px); border:1.5px solid rgba(255,255,255,.15); flex-shrink:0; }
-
-.overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:500; align-items:center; justify-content:center; padding:20px; }
-.overlay.on { display:flex; }
-.modal { background:#16213e; border:1.5px solid rgba(255,255,255,.15); border-radius:16px; padding:24px 20px; max-width:300px; width:100%; text-align:center; display:flex; flex-direction:column; gap:12px; }
-.m-emoji { font-size:52px; }
-.m-title { font-family:'Fredoka One',cursive; font-size:26px; }
-.m-text { font-size:13px; color:var(--dim); line-height:1.5; }
-
-.toast { position:fixed; top:16px; left:50%; transform:translateX(-50%) translateY(-70px); background:rgba(20,20,40,.96); border:1.5px solid rgba(255,255,255,.2); color:var(--text); padding:10px 18px; border-radius:10px; font-size:13px; font-weight:700; z-index:1000; transition:transform .28s ease; max-width:280px; text-align:center; }
-.toast.on { transform:translateX(-50%) translateY(0); }
-.toast.ok { border-color:var(--green); color:var(--green); }
-.toast.err { border-color:var(--accent); color:var(--accent); }
-</style>
-</head>
-<body>
-
-<!-- MENU -->
-<div id="menuScreen" class="screen active">
-  <div class="logo">Skip-Bo</div>
-  <div class="logo-sub">Карточная игра</div>
-  <div class="ig">
-    <div>
-      <div class="lbl">Ваше имя</div>
-      <input type="text" id="playerName" placeholder="Введите имя" maxlength="14">
-    </div>
-    <div>
-      <div class="lbl">Карт в стопке</div>
-      <div class="stack-opts">
-        <div class="sopt sel" data-v="10" onclick="pickStack(this)">10</div>
-        <div class="sopt" data-v="20" onclick="pickStack(this)">20</div>
-        <div class="sopt" data-v="30" onclick="pickStack(this)">30</div>
-      </div>
-    </div>
-    <button class="btn btn-red" onclick="startVsPC()">🤖 Против компьютера</button>
-    <div class="divider">или</div>
-    <button class="btn btn-blue" onclick="showScreen('onlineScreen')">🌐 Играть онлайн</button>
-    <details style="width:100%">
-      <summary style="cursor:pointer;font-size:13px;color:var(--dim);text-align:center;padding:6px;">📖 Правила игры</summary>
-      <div class="rules-box" style="margin-top:6px">
-        <h4>Цель</h4>Первым избавиться от своей стопки (Stock).<br><br>
-        <h4>Ход</h4>
-        • Нажмите карту из РУКИ или вершину СВОЕЙ СТОПКИ<br>
-        • Затем нажмите зелёную СТОПКУ СБОРКИ (центр)<br>
-        • Skip-Bo 🃏 = джокер (любое число)<br>
-        • Чтобы закончить ход: нажмите карту из руки → нажмите одну из 4 СТОПОК СБРОСА (ваша зона)<br>
-        • Стопка сборки 1→12, при 12 сбрасывается
-      </div>
-    </details>
-  </div>
-</div>
-
-<!-- ONLINE -->
-<div id="onlineScreen" class="screen" style="background:radial-gradient(ellipse at top,#0f3460,#1a1a2e);gap:12px;padding:24px">
-  <div class="logo" style="font-size:36px">Онлайн</div>
-  <div class="ig">
-    <button class="btn btn-blue" onclick="createRoom()">➕ Создать комнату</button>
-    <div class="divider">или</div>
-    <div>
-      <div class="lbl">Код комнаты</div>
-      <input type="text" id="roomIn" placeholder="XXXXXX" maxlength="6" style="text-transform:uppercase;text-align:center;font-size:22px;font-family:'Fredoka One',cursive;letter-spacing:4px">
-    </div>
-    <button class="btn btn-red" onclick="joinRoom()">🚪 Войти</button>
-    <div id="waitBox" class="wait-box" style="display:none">
-      <div style="font-size:12px;color:var(--dim);margin-bottom:6px">КОД КОМНАТЫ</div>
-      <div class="room-code-big" id="codeDisplay" onclick="copyCode()"></div>
-      <p>Нажмите на код чтобы скопировать и отправить другу</p>
-      <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;font-size:12px;color:var(--dim)">
-        <div class="dots"><span></span><span></span><span></span></div> Ожидаю противника...
-      </div>
-    </div>
-    <button class="btn btn-out" onclick="showScreen('menuScreen')">← Назад</button>
-  </div>
-</div>
-
-<!-- GAME -->
-<div id="gameScreen" class="screen">
-<div class="gw">
-
-  <div class="topbar">
-    <div class="tb-title">Skip-Bo</div>
-    <div id="turnPill" class="turn-pill">Ваш ход</div>
-    <button class="btn-sm" onclick="confirmQuit()">✕ Выйти</button>
-  </div>
-
-  <!-- OPPONENT ZONE -->
-  <div class="zone-opp">
-    <div class="zone-label" id="lblOpp">Противник</div>
-    <div class="row" style="align-items:flex-end">
-      <div class="stack-wrap" id="oppStockWrap">
-        <div class="card-back" id="oppStockBack"></div>
-        <div class="badge" id="oppStockBadge">?</div>
-        <div id="oppStockTop" style="position:absolute;inset:0;z-index:3"></div>
-      </div>
-      <div id="oppDiscards" class="row" style="flex:1;gap:5px;overflow:hidden;align-items:flex-end"></div>
-      <div class="draw-mini"><span id="drawCnt">?</span><span style="font-size:9px">колода</span></div>
-    </div>
-    <div id="oppHand" class="opp-hand"></div>
-  </div>
-
-  <!-- BUILD ZONE -->
-  <div class="zone-build">
-    <div class="zone-label" style="text-align:center">⚡ СТОПКИ СБОРКИ (1 → 12) ⚡</div>
-    <div class="row" style="justify-content:center;gap:8px" id="buildRow"></div>
-  </div>
-
-  <!-- HINT -->
-  <div class="hint-bar" id="hintBar">Выберите карту</div>
-
-  <!-- MY ZONE -->
-  <div class="zone-me">
-    <div class="zone-label" id="lblMe">Вы</div>
-    <div class="row">
-      <div class="stack-wrap" id="myStockWrap" style="cursor:pointer" onclick="tapStock()">
-        <div class="card-back" id="myStockBack"></div>
-        <div class="badge" id="myStockBadge">?</div>
-        <div id="myStockTop" style="position:absolute;inset:0;z-index:3"></div>
-      </div>
-      <div id="myDiscards" class="row" style="flex:1;gap:5px;overflow:hidden;align-items:flex-end"></div>
-    </div>
-  </div>
-
-  <!-- HAND ZONE -->
-  <div class="zone-hand">
-    <div class="zone-label">Рука — нажмите карту, затем куда положить</div>
-    <div class="row" style="justify-content:center;flex-wrap:nowrap;gap:5px" id="handRow"></div>
-  </div>
-
-</div>
-</div>
-
-<!-- WIN MODAL -->
-<div id="winModal" class="overlay">
-  <div class="modal">
-    <div class="m-emoji" id="wEmoji">🏆</div>
-    <div class="m-title" id="wTitle">Победа!</div>
-    <div class="m-text" id="wText"></div>
-    <button class="btn btn-red" onclick="backMenu()">В меню</button>
-    <button class="btn btn-out" onclick="restartGame()">Ещё раз</button>
-  </div>
-</div>
-
-<!-- QUIT MODAL -->
-<div id="quitModal" class="overlay">
-  <div class="modal">
-    <div class="m-emoji">🚪</div>
-    <div class="m-title">Выйти?</div>
-    <div class="m-text">Прогресс будет потерян</div>
-    <button class="btn btn-red" onclick="backMenu()">Выйти</button>
-    <button class="btn btn-out" onclick="closeModal('quitModal')">Продолжить</button>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
-
-<script>
-const socket = io();
-let G = null, myIdx = 0, mode = null, sel = null, stackSz = 10, lastCfg = null;
-
-// ---- UTILS ----
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-}
-function closeModal(id) { document.getElementById(id).classList.remove('on'); }
-function toast(msg, type='') {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = 'toast on ' + type;
-  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 2600);
-}
-function pickStack(el) {
-  document.querySelectorAll('.sopt').forEach(b => b.classList.remove('sel'));
-  el.classList.add('sel'); stackSz = parseInt(el.dataset.v);
-}
-function confirmQuit() { document.getElementById('quitModal').classList.add('on'); }
-function copyCode() {
-  const code = document.getElementById('codeDisplay').textContent;
-  navigator.clipboard?.writeText(code).then(() => toast('Код скопирован!','ok'));
-}
-
-// ---- LADDER DISCARD SLOT ----
-// Renders a discard pile as a stacked "ladder" of cards, all visible
-// Each card peeks STEP px above the previous one; top card is fully shown
-const STEP = 14; // px each card peeks out
-function makeLadderSlot(cards, interactive, isGlow, isSel, idx) {
-  if (!cards || cards.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'd-slot-empty' + (isGlow ? ' glow' : '');
-    empty.textContent = idx + 1;
-    return empty;
-  }
-  const CW = 48, CH = 68;
-  const totalH = CH + (cards.length - 1) * STEP;
-  const wrap = document.createElement('div');
-  wrap.className = 'd-slot' + (isGlow ? ' glow' : '');
-  wrap.style.cssText = `width:${CW}px;height:${totalH}px;position:relative;flex-shrink:0`;
-
-  cards.forEach((n, i) => {
-    const isTop = i === cards.length - 1;
-    const c = document.createElement('div');
-    c.className = (n === 0 ? 'card c0' : 'card c' + n);
-    c.textContent = n === 0 ? 'Skip-Bo' : String(n);
-    c.style.cssText = [
-      `position:absolute`,
-      `top:${i * STEP}px`,
-      `left:0`,
-      `width:${CW}px`,
-      `height:${CH}px`,
-      `pointer-events:none`,
-      `z-index:${i + 1}`,
-      `font-size:${isTop ? 22 : 16}px`,
-      isTop && isSel ? 'transform:translateY(-8px) scale(1.05);border-color:var(--gold)!important;box-shadow:0 4px 14px rgba(245,166,35,.55)' : ''
-    ].filter(Boolean).join(';');
-    if (isTop) c.classList.add('d-ladder-top');
-    wrap.appendChild(c);
-  });
-
-  return wrap;
-}
-
-// ---- RENDER ----
-// ---- CARD HELPERS ----
-function cCls(n) { return n === 0 ? 'card c0' : 'card c' + n; }
-function cTxt(n) { return n === 0 ? 'Skip-Bo' : String(n); }
-function mkCard(n, cb) {
-  const d = document.createElement('div');
-  d.className = cCls(n);
-  d.textContent = cTxt(n);
-  if (cb) d.addEventListener('click', cb);
-  return d;
-}
-
-// ---- RENDER ----
-function render() {
-  if (!G) return;
-  const me = G.players[myIdx];
-  const opp = G.players[1 - myIdx];
-  const myTurn = (G.currentPlayerIndex === myIdx) && !G.gameOver;
-
-  // Turn pill
-  const pill = document.getElementById('turnPill');
-  pill.textContent = G.gameOver ? 'Игра окончена' : (myTurn ? 'Ваш ход' : 'Ход противника');
-  pill.className = 'turn-pill' + (myTurn || G.gameOver ? '' : ' opp');
-
-  // Labels
-  document.getElementById('lblOpp').textContent = opp.name + ' · Stock: ' + opp.stockPileCount;
-  document.getElementById('lblMe').textContent = me.name + ' · Stock: ' + me.stockPileCount;
-  document.getElementById('drawCnt').textContent = G.drawPileCount;
-  document.getElementById('oppStockBadge').textContent = opp.stockPileCount;
-
-  // Opponent hand (back of cards)
-  const oh = document.getElementById('oppHand');
-  oh.innerHTML = '';
-  const oppHandCnt = opp.hand ? opp.hand.filter(c => c !== -1).length : 0;
-  for (let i = 0; i < oppHandCnt; i++) {
-    const m = document.createElement('div'); m.className = 'opp-mini'; oh.appendChild(m);
-  }
-
-  // Opponent stock — show top card face up
-  const ossw = document.getElementById('oppStockWrap');
-  const ost = document.getElementById('oppStockTop');
-  const osb = document.getElementById('oppStockBack');
-  document.getElementById('oppStockBadge').textContent = opp.stockPileCount;
-  ost.innerHTML = '';
-  if (opp.stockPileTop !== null) {
-    // Show face-up top card
-    osb.style.opacity = '0.35';
-    const c = mkCard(opp.stockPileTop, null);
-    c.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;cursor:default';
-    ost.appendChild(c);
-  } else {
-    osb.style.opacity = '1';
-  }
-
-  // Opponent discards (ladder, no interaction)
-  const od = document.getElementById('oppDiscards');
-  od.innerHTML = '';
-  for (let d = 0; d < 4; d++) {
-    const cards = opp.discardPileCards ? opp.discardPileCards[d] : [];
-    od.appendChild(makeLadderSlot(cards, false, false, false, d));
-  }
-
-  // Build piles
-  const br = document.getElementById('buildRow');
-  br.innerHTML = '';
-  for (let b = 0; b < 4; b++) {
-    const cur = G.buildPiles[b];
-    const needed = (cur || 0) + 1;
-    const canPlay = myTurn && sel !== null && canPlayOn(b);
-    const slot = document.createElement('div');
-    slot.className = 'b-slot' + (canPlay ? ' playable' : '');
-    if (canPlay) slot.addEventListener('click', () => doPlayToBuild(b));
-    if (cur !== null) {
-      const c = mkCard(cur, null);
-      c.style.cssText = 'width:100%;height:100%;border-radius:5px;pointer-events:none';
-      slot.appendChild(c);
-    } else { slot.textContent = '1'; }
-    const nx = document.createElement('div');
-    nx.className = 'b-next'; nx.textContent = needed<=12 ? '→'+needed : '✓';
-    slot.appendChild(nx);
-    br.appendChild(slot);
-  }
-
-  // My stock
-  const mst = document.getElementById('myStockTop');
-  mst.innerHTML = '';
-  document.getElementById('myStockBadge').textContent = me.stockPileCount;
-  if (me.stockPileTop !== null) {
-    const c = mkCard(me.stockPileTop, null);
-    c.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
-    if (sel && sel.src === 'stock') c.classList.add('sel');
-    mst.appendChild(c);
-  }
-
-  // My discards (ladder, interactive)
-  const myd = document.getElementById('myDiscards');
-  myd.innerHTML = '';
-  for (let d = 0; d < 4; d++) {
-    const cards = me.discardPileCards ? me.discardPileCards[d] : [];
-    const isGlow = myTurn && ((sel && sel.src === 'hand') || (sel && sel.src === 'discard' && sel.idx === d));
-    const isSel = sel && sel.src === 'discard' && sel.idx === d;
-    const slot = makeLadderSlot(cards, true, isGlow, isSel, d);
-    if (myTurn) {
-      slot.addEventListener('click', () => {
-        if (sel && sel.src === 'hand') doDiscard(d);
-        else tapDiscard(d);
-      });
-    }
-    myd.appendChild(slot);
-  }
-
-  // Hand
-  const hr = document.getElementById('handRow');
-  hr.innerHTML = '';
-  if (!me.hand || me.hand.length === 0) {
-    const e = document.createElement('div');
-    e.style.cssText = 'color:var(--dim);font-size:13px;text-align:center';
-    e.textContent = '— добор карт —';
-    hr.appendChild(e);
-  } else {
-    me.hand.forEach((n, i) => {
-      const c = mkCard(n, myTurn ? () => tapHand(i) : null);
-      if (!myTurn) c.style.cursor = 'default';
-      if (sel && sel.src === 'hand' && sel.idx === i) c.classList.add('sel');
-      hr.appendChild(c);
-    });
-  }
-
-  // Hint
-  const h = document.getElementById('hintBar');
-  if (G.gameOver) { h.textContent = '🎮 Игра окончена'; return; }
-  if (!myTurn) { h.textContent = mode === 'computer' ? '🤖 Компьютер думает...' : '⏳ Ход противника'; return; }
-  if (!sel) { h.textContent = '👆 Нажмите карту из РУКИ или верхнюю карту СТОПКИ'; return; }
-  if (sel.src === 'hand') h.textContent = '▶ Нажмите зелёную СТОПКУ СБОРКИ  или  свою СТОПКУ СБРОСА (снизу)';
-  else h.textContent = '▶ Нажмите зелёную СТОПКУ СБОРКИ | Нажмите снова — отмена';
-}
-
-// ---- SELECTION & PLAY ----
-function getSelCard() {
-  if (!sel || !G) return null;
-  const me = G.players[myIdx];
-  if (sel.src === 'hand') return me.hand[sel.idx];
-  if (sel.src === 'stock') return me.stockPileTop;
-  if (sel.src === 'discard') return me.discardPiles[sel.idx];
-  return null;
-}
-function canPlayOn(b) {
-  const card = getSelCard();
-  if (card === null || card === undefined) return false;
-  const needed = (G.buildPiles[b] || 0) + 1;
-  if (needed > 12) return false;
-  if (card === 0) return true;
-  return card === needed;
-}
-
-function tapHand(i) {
-  if (sel && sel.src === 'hand' && sel.idx === i) { sel = null; render(); return; }
-  sel = { src:'hand', idx:i }; render();
-}
-function tapStock() {
-  if (!G || G.currentPlayerIndex !== myIdx) return;
-  const me = G.players[myIdx];
-  if (me.stockPileTop === null) { toast('Стопка пуста','err'); return; }
-  if (sel && sel.src === 'stock') { sel = null; render(); return; }
-  sel = { src:'stock', idx:0 }; render();
-}
-function tapDiscard(d) {
-  if (!G || G.currentPlayerIndex !== myIdx) return;
-  const me = G.players[myIdx];
-  if (sel && sel.src === 'hand') { doDiscard(d); return; }
-  if (sel && sel.src === 'discard' && sel.idx === d) { sel = null; render(); return; }
-  if (me.discardPiles[d] === null) return;
-  sel = { src:'discard', idx:d }; render();
-}
-function doPlayToBuild(b) {
-  if (!sel) return;
-  socket.emit(mode==='computer'?'play_to_build':'online_play_to_build',
-    { cardSource:sel.src, cardIndex:sel.idx, buildPileIndex:b });
-  sel = null;
-}
-function doDiscard(d) {
-  if (!sel || sel.src !== 'hand') return;
-  socket.emit(mode==='computer'?'discard_card':'online_discard_card',
-    { cardIndex:sel.idx, discardPileIndex:d });
-  sel = null;
-}
-
-// ---- GAME START ----
-function startVsPC() {
-  const name = document.getElementById('playerName').value.trim() || 'Игрок';
-  mode = 'computer'; myIdx = 0;
-  lastCfg = { name, stackSize:stackSz };
-  socket.emit('start_vs_computer', { stackSize:stackSz, playerName:name });
-}
-function createRoom() {
-  const name = document.getElementById('playerName').value.trim() || 'Игрок 1';
-  socket.emit('create_room', { stackSize:stackSz, playerName:name });
-}
-function joinRoom() {
-  const code = document.getElementById('roomIn').value.trim().toUpperCase();
-  if (code.length < 4) { toast('Введите код','err'); return; }
-  const name = document.getElementById('playerName').value.trim() || 'Игрок 2';
-  socket.emit('join_room', { roomId:code, playerName:name });
-}
-function backMenu() {
-  closeModal('winModal'); closeModal('quitModal');
-  G = null; sel = null; showScreen('menuScreen');
-}
-function restartGame() {
-  closeModal('winModal');
-  if (mode==='computer' && lastCfg) socket.emit('start_vs_computer', { stackSize:lastCfg.stackSize, playerName:lastCfg.name });
-  else backMenu();
-}
-function showWin(wi, wn) {
-  const iMe = wi === myIdx;
-  document.getElementById('wEmoji').textContent = iMe ? '🏆' : '😞';
-  document.getElementById('wTitle').textContent = iMe ? 'Победа!' : 'Поражение';
-  document.getElementById('wText').textContent = iMe
-    ? 'Поздравляем! Вы первым избавились от стопки!'
-    : wn + ' первым избавился от стопки. Попробуйте ещё!';
-  document.getElementById('winModal').classList.add('on');
-}
-
-// ---- SOCKET ----
-socket.on('game_started', ({ state, playerIndex, mode:m, roomId:r }) => {
-  G = state; myIdx = playerIndex; mode = m; sel = null;
-  document.getElementById('waitBox').style.display = 'none';
-  showScreen('gameScreen'); render();
-});
-socket.on('game_update', ({ state }) => { G = state; render(); });
-socket.on('computer_moved', ({ state }) => { G = state; render(); });
-socket.on('game_over', ({ winner, winnerName }) => {
-  if (G) G.gameOver = true; render();
-  setTimeout(() => showWin(winner, winnerName), 500);
-});
-socket.on('room_created', ({ roomId:r }) => {
-  document.getElementById('codeDisplay').textContent = r;
-  document.getElementById('waitBox').style.display = 'block';
-  mode = 'online';
-});
-socket.on('error', ({ message }) => { toast(message,'err'); sel=null; if(G) render(); });
-socket.on('player_disconnected', ({ message }) => { toast(message,'err'); setTimeout(backMenu,2200); });
-</script>
-</body>
-</html>
+diff --git a/public/index.html b/public/index.html
+index 422b1d4dcb57bb680a6320864bb2d6a03b221506..db1a5717531786ea9ce5e19b5af863330f9c4e46 100644
+--- a/public/index.html
++++ b/public/index.html
+@@ -5,107 +5,108 @@
+ <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+ <title>Skip-Bo</title>
+ <script src="/socket.io/socket.io.js"></script>
+ <style>
+ @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;800&display=swap');
+ 
+ :root {
+   --bg:#1a1a2e; --accent:#e94560; --gold:#f5a623; --green:#27ae60;
+   --blue:#2980b9; --text:#eaeaea; --dim:#7f8c8d;
+   --CW:48px; --CH:68px;
+ }
+ * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+ body { font-family:'Nunito',sans-serif; background:var(--bg); color:var(--text); height:100dvh; overflow:hidden; user-select:none; }
+ 
+ .screen { display:none; }
+ .screen.active { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100dvh; }
+ 
+ #menuScreen { background:radial-gradient(ellipse at top,#0f3460 0%,#1a1a2e 70%); gap:14px; padding:24px; }
+ .logo { font-family:'Fredoka One',cursive; font-size:56px; background:linear-gradient(135deg,#f5a623,#e94560); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+ .logo-sub { font-size:12px; color:var(--dim); letter-spacing:3px; text-transform:uppercase; }
+ .ig { width:100%; max-width:320px; display:flex; flex-direction:column; gap:10px; }
+ .lbl { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:3px; }
+ input[type=text] { width:100%; padding:13px 14px; background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.15); border-radius:10px; color:var(--text); font-size:16px; font-family:'Nunito',sans-serif; outline:none; }
+ input[type=text]:focus { border-color:var(--gold); }
+ .stack-opts { display:flex; gap:8px; }
+-.sopt { flex:1; padding:11px; background:rgba(255,255,255,.07); border:2px solid rgba(255,255,255,.15); border-radius:10px; color:var(--text); font-size:16px; font-family:'Fredoka One',cursive; cursor:pointer; text-align:center; }
++.sopt { flex:1; padding:11px; background:rgba(255,255,255,.07); border:2px solid rgba(255,255,255,.15); border-radius:10px; color:var(--text); font-size:16px; font-family:Calibri,'Segoe UI',sans-serif; font-weight:700; cursor:pointer; text-align:center; }
+ .sopt.sel { background:rgba(245,166,35,.2); border-color:var(--gold); color:var(--gold); }
+ .btn { width:100%; max-width:320px; padding:15px; border:none; border-radius:10px; font-size:17px; font-family:'Fredoka One',cursive; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
++#menuScreen .btn, #menuScreen .sopt { font-family:Calibri,'Segoe UI',sans-serif; }
+ .btn:active { transform:scale(.96); }
+ .btn-red { background:linear-gradient(135deg,#e94560,#c0392b); color:#fff; }
+ .btn-blue { background:linear-gradient(135deg,#2196f3,#1565c0); color:#fff; }
+ .btn-out { background:transparent; border:2px solid rgba(255,255,255,.25); color:var(--text); }
+ .divider { width:100%; max-width:320px; display:flex; align-items:center; gap:10px; color:var(--dim); font-size:12px; }
+ .divider::before,.divider::after { content:''; flex:1; height:1px; background:rgba(255,255,255,.1); }
+ .rules-box { width:100%; max-width:320px; background:rgba(255,255,255,.04); border-radius:10px; padding:12px; font-size:12px; line-height:1.7; color:var(--dim); }
+ .rules-box h4 { font-size:13px; color:var(--text); margin-bottom:5px; font-weight:800; }
+ 
+ #onlineScreen { background:radial-gradient(ellipse at top,#0f3460,#1a1a2e); gap:12px; padding:24px; }
+ .room-code-big { font-family:'Fredoka One',cursive; font-size:40px; letter-spacing:8px; color:var(--gold); background:rgba(245,166,35,.1); padding:10px 18px; border-radius:10px; border:1.5px solid rgba(245,166,35,.3); cursor:pointer; }
+ .wait-box { background:rgba(33,150,243,.1); border:1.5px solid rgba(33,150,243,.3); border-radius:10px; padding:14px; text-align:center; width:100%; max-width:320px; }
+ .wait-box p { font-size:13px; color:var(--dim); margin-top:8px; }
+ .dots span { display:inline-block; width:5px; height:5px; background:var(--blue); border-radius:50%; animation:blink 1.2s infinite; }
+ .dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
+ @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+ 
+ #gameScreen { padding:0; background:#111827; justify-content:flex-start; height:100dvh; overflow:hidden; }
+ #gameScreen.active { display:flex; }
+ .gw { width:100%; max-width:480px; margin:0 auto; display:flex; flex-direction:column; height:100dvh; }
+ 
+ .topbar { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:rgba(255,255,255,.04); border-bottom:1px solid rgba(255,255,255,.07); flex-shrink:0; }
+ .tb-title { font-family:'Fredoka One',cursive; font-size:19px; color:var(--gold); }
+ .turn-pill { font-size:11px; font-weight:800; padding:4px 10px; border-radius:20px; background:rgba(39,174,96,.2); color:var(--green); border:1px solid var(--green); }
+ .turn-pill.opp { background:rgba(233,69,96,.2); color:var(--accent); border-color:var(--accent); }
+ .btn-sm { padding:5px 10px; font-size:12px; font-family:'Nunito',sans-serif; font-weight:700; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.2); border-radius:6px; color:var(--text); cursor:pointer; }
+ 
+ .zone-opp { background:rgba(233,69,96,.06); border-bottom:2px solid rgba(233,69,96,.2); padding:7px 12px; flex-shrink:0; min-height:100px; }
+ .zone-build { background:rgba(255,255,255,.02); border-bottom:1px solid rgba(255,255,255,.08); padding:7px 12px; flex-shrink:0; }
+ .zone-me { background:rgba(39,174,96,.06); border-top:2px solid rgba(39,174,96,.2); padding:7px 12px; flex-shrink:0; min-height:100px; }
+ .zone-hand { background:rgba(255,255,255,.02); padding:7px 12px 10px; flex:1; display:flex; flex-direction:column; justify-content:flex-end; }
+ .hint-bar { background:rgba(245,166,35,.08); border-top:1px solid rgba(245,166,35,.15); border-bottom:1px solid rgba(245,166,35,.15); padding:5px 12px; font-size:12px; font-weight:700; color:var(--gold); text-align:center; flex-shrink:0; min-height:28px; }
+ 
+ .zone-label { font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:var(--dim); margin-bottom:6px; font-weight:800; }
+ .row { display:flex; align-items:center; gap:7px; }
+ 
+ /* CARDS */
+-.card { width:var(--CW); height:var(--CH); border-radius:7px; display:flex; align-items:center; justify-content:center; font-family:'Fredoka One',cursive; font-size:22px; border:2px solid rgba(255,255,255,.25); cursor:pointer; position:relative; flex-shrink:0; transition:transform .12s,box-shadow .12s; }
++.card { width:var(--CW); height:var(--CH); border-radius:7px; display:flex; align-items:center; justify-content:center; font-family:'Fredoka One',cursive; font-size:22px; color:#111; border:2px solid rgba(255,255,255,.25); cursor:pointer; position:relative; flex-shrink:0; transition:transform .12s,box-shadow .12s; }
+ .card:active { transform:scale(.91); }
+ .card.sel { transform:translateY(-10px) scale(1.07) !important; border-color:var(--gold) !important; box-shadow:0 6px 20px rgba(245,166,35,.6) !important; z-index:20; }
+ 
+-.c0{background:linear-gradient(135deg,#ff6b6b,#ee5a24);font-size:10px;font-family:'Nunito',sans-serif;font-weight:800;text-align:center;padding:4px;border-color:rgba(255,255,255,.35)!important}
+-.c1{background:linear-gradient(135deg,#e74c3c,#c0392b)}
+-.c2{background:linear-gradient(135deg,#e67e22,#d35400)}
+-.c3{background:linear-gradient(135deg,#f39c12,#d68910);color:#1a1a1a}
+-.c4{background:linear-gradient(135deg,#27ae60,#1e8449)}
+-.c5{background:linear-gradient(135deg,#1abc9c,#148f77)}
+-.c6{background:linear-gradient(135deg,#2980b9,#1a5276)}
+-.c7{background:linear-gradient(135deg,#8e44ad,#6c3483)}
+-.c8{background:linear-gradient(135deg,#e91e63,#ad1457)}
+-.c9{background:linear-gradient(135deg,#00bcd4,#00838f)}
+-.c10{background:linear-gradient(135deg,#ff5722,#bf360c)}
+-.c11{background:linear-gradient(135deg,#546e7a,#37474f)}
+-.c12{background:linear-gradient(135deg,#ffd700,#ffa000);color:#1a1a1a}
++.c0{background:linear-gradient(135deg,#111,#000);color:#fff;font-size:10px;font-family:'Nunito',sans-serif;font-weight:800;text-align:center;padding:4px;border-color:rgba(255,255,255,.4)!important}
++.c1{background:linear-gradient(135deg,#ff78c9,#ff4fb4)}
++.c2{background:linear-gradient(135deg,#ff4d4d,#d90000)}
++.c3{background:linear-gradient(135deg,#ffb347,#ff8c00)}
++.c4{background:linear-gradient(135deg,#ffe66d,#ffd000)}
++.c5{background:linear-gradient(135deg,#7dff4d,#39d400)}
++.c6{background:linear-gradient(135deg,#2e8b57,#146b3a)}
++.c7{background:linear-gradient(135deg,#a97142,#7b4a2a)}
++.c8{background:linear-gradient(135deg,#7fe7ff,#33c7ff)}
++.c9{background:linear-gradient(135deg,#4a90ff,#1e5be0)}
++.c10{background:linear-gradient(135deg,#b26bff,#7d3cff)}
++.c11{background:linear-gradient(135deg,#c7c7c7,#9e9e9e)}
++.c12{background:linear-gradient(135deg,#fff,#f2f2f2)}
+ 
+ .card-back { width:var(--CW); height:var(--CH); border-radius:7px; flex-shrink:0; background:repeating-linear-gradient(45deg,#1565c0 0,#1565c0 4px,#0d47a1 4px,#0d47a1 8px); border:2px solid rgba(255,255,255,.2); }
+ .stack-wrap { position:relative; flex-shrink:0; width:var(--CW); height:var(--CH); }
+ .badge { position:absolute; top:-7px; right:-7px; background:var(--accent); color:#fff; border-radius:50%; width:19px; height:19px; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center; z-index:5; border:1.5px solid #111; }
+ 
+ /* Discard ladder styles */
+ .d-slot { width:var(--CW); flex-shrink:0; position:relative; cursor:pointer; }
+ .d-slot:active .d-ladder { filter:brightness(.85); }
+ .d-slot.glow .d-ladder-top { outline:2px solid var(--gold); outline-offset:1px; border-radius:8px; box-shadow:0 0 10px rgba(245,166,35,.5); }
+ .d-slot-empty { width:var(--CW); height:var(--CH); border-radius:7px; border:1.5px dashed rgba(255,255,255,.2); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; color:rgba(255,255,255,.2); font-weight:700; cursor:pointer; transition:border-color .15s,box-shadow .15s; }
+ .d-slot-empty.glow { border-color:var(--gold); box-shadow:0 0 10px rgba(245,166,35,.4); border-style:solid; }
+ .d-slot-empty:active { transform:scale(.93); }
+ .d-ladder { position:relative; width:var(--CW); }
+ 
+ .b-slot { width:var(--CW); height:var(--CH); border-radius:7px; border:1.5px dashed rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; flex-shrink:0; transition:all .15s; background:rgba(255,255,255,.02); font-size:11px; color:rgba(255,255,255,.2); font-weight:700; overflow:hidden; }
+ .b-slot.playable { border-color:var(--green)!important; border-style:solid; background:rgba(39,174,96,.12); box-shadow:0 0 12px rgba(39,174,96,.4); animation:gp 1.4s ease-in-out infinite; }
+ .b-slot:active { transform:scale(.93); }
+ .b-next { position:absolute; bottom:3px; left:0; right:0; text-align:center; font-size:9px; color:rgba(255,255,255,.3); font-weight:800; pointer-events:none; }
+ @keyframes gp{0%,100%{box-shadow:0 0 8px rgba(39,174,96,.3)}50%{box-shadow:0 0 18px rgba(39,174,96,.65)}}
+ 
+ .draw-mini { width:var(--CW); height:var(--CH); border-radius:7px; flex-shrink:0; background:linear-gradient(135deg,#4a148c,#6a1b9a); border:2px solid rgba(255,255,255,.2); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:rgba(255,255,255,.7); gap:2px; }
+ .opp-hand { display:flex; gap:4px; margin-top:5px; }
+ .opp-mini { width:24px; height:34px; border-radius:4px; background:repeating-linear-gradient(45deg,#1565c0 0,#1565c0 3px,#0d47a1 3px,#0d47a1 6px); border:1.5px solid rgba(255,255,255,.15); flex-shrink:0; }
+ 
+ .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:500; align-items:center; justify-content:center; padding:20px; }
+@@ -146,83 +147,89 @@ input[type=text]:focus { border-color:var(--gold); }
+     <details style="width:100%">
+       <summary style="cursor:pointer;font-size:13px;color:var(--dim);text-align:center;padding:6px;">📖 Правила игры</summary>
+       <div class="rules-box" style="margin-top:6px">
+         <h4>Цель</h4>Первым избавиться от своей стопки (Stock).<br><br>
+         <h4>Ход</h4>
+         • Нажмите карту из РУКИ или вершину СВОЕЙ СТОПКИ<br>
+         • Затем нажмите зелёную СТОПКУ СБОРКИ (центр)<br>
+         • Skip-Bo 🃏 = джокер (любое число)<br>
+         • Чтобы закончить ход: нажмите карту из руки → нажмите одну из 4 СТОПОК СБРОСА (ваша зона)<br>
+         • Стопка сборки 1→12, при 12 сбрасывается
+       </div>
+     </details>
+   </div>
+ </div>
+ 
+ <!-- ONLINE -->
+ <div id="onlineScreen" class="screen" style="background:radial-gradient(ellipse at top,#0f3460,#1a1a2e);gap:12px;padding:24px">
+   <div class="logo" style="font-size:36px">Онлайн</div>
+   <div class="ig">
+     <button class="btn btn-blue" onclick="createRoom()">➕ Создать комнату</button>
+     <div class="divider">или</div>
+     <div>
+       <div class="lbl">Код комнаты</div>
+       <input type="text" id="roomIn" placeholder="XXXXXX" maxlength="6" style="text-transform:uppercase;text-align:center;font-size:22px;font-family:'Fredoka One',cursive;letter-spacing:4px">
+     </div>
++    <div class="lbl">Stack для онлайн игры</div>
++    <div class="stack-opts">
++      <div class="sopt sel online-sopt" data-v="10" onclick="pickOnlineStack(this)">10</div>
++      <div class="sopt online-sopt" data-v="20" onclick="pickOnlineStack(this)">20</div>
++      <div class="sopt online-sopt" data-v="30" onclick="pickOnlineStack(this)">30</div>
++    </div>
+     <button class="btn btn-red" onclick="joinRoom()">🚪 Войти</button>
+     <div id="waitBox" class="wait-box" style="display:none">
+       <div style="font-size:12px;color:var(--dim);margin-bottom:6px">КОД КОМНАТЫ</div>
+       <div class="room-code-big" id="codeDisplay" onclick="copyCode()"></div>
+       <p>Нажмите на код чтобы скопировать и отправить другу</p>
+       <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;font-size:12px;color:var(--dim)">
+         <div class="dots"><span></span><span></span><span></span></div> Ожидаю противника...
+       </div>
+     </div>
+     <button class="btn btn-out" onclick="showScreen('menuScreen')">← Назад</button>
+   </div>
+ </div>
+ 
+ <!-- GAME -->
+ <div id="gameScreen" class="screen">
+ <div class="gw">
+ 
+   <div class="topbar">
+     <div class="tb-title">Skip-Bo</div>
+     <div id="turnPill" class="turn-pill">Ваш ход</div>
+     <button class="btn-sm" onclick="confirmQuit()">✕ Выйти</button>
+   </div>
+ 
+   <!-- OPPONENT ZONE -->
+   <div class="zone-opp">
+     <div class="zone-label" id="lblOpp">Противник</div>
+     <div class="row" style="align-items:flex-end">
+       <div class="stack-wrap" id="oppStockWrap">
+         <div class="card-back" id="oppStockBack"></div>
+         <div class="badge" id="oppStockBadge">?</div>
+         <div id="oppStockTop" style="position:absolute;inset:0;z-index:3"></div>
+       </div>
+-      <div id="oppDiscards" class="row" style="flex:1;gap:5px;overflow:hidden;align-items:flex-end"></div>
++      <div id="oppDiscards" class="row" style="flex:1;gap:5px;overflow:hidden;align-items:flex-end;min-height:124px;max-height:124px"></div>
+       <div class="draw-mini"><span id="drawCnt">?</span><span style="font-size:9px">колода</span></div>
+     </div>
+     <div id="oppHand" class="opp-hand"></div>
+   </div>
+ 
+   <!-- BUILD ZONE -->
+   <div class="zone-build">
+     <div class="zone-label" style="text-align:center">⚡ СТОПКИ СБОРКИ (1 → 12) ⚡</div>
+     <div class="row" style="justify-content:center;gap:8px" id="buildRow"></div>
+   </div>
+ 
+   <!-- HINT -->
+   <div class="hint-bar" id="hintBar">Выберите карту</div>
+ 
+   <!-- MY ZONE -->
+   <div class="zone-me">
+     <div class="zone-label" id="lblMe">Вы</div>
+     <div class="row">
+       <div class="stack-wrap" id="myStockWrap" style="cursor:pointer" onclick="tapStock()">
+         <div class="card-back" id="myStockBack"></div>
+         <div class="badge" id="myStockBadge">?</div>
+         <div id="myStockTop" style="position:absolute;inset:0;z-index:3"></div>
+       </div>
+       <div id="myDiscards" class="row" style="flex:1;gap:5px;overflow:hidden;align-items:flex-end"></div>
+     </div>
+@@ -241,92 +248,98 @@ input[type=text]:focus { border-color:var(--gold); }
+ <div id="winModal" class="overlay">
+   <div class="modal">
+     <div class="m-emoji" id="wEmoji">🏆</div>
+     <div class="m-title" id="wTitle">Победа!</div>
+     <div class="m-text" id="wText"></div>
+     <button class="btn btn-red" onclick="backMenu()">В меню</button>
+     <button class="btn btn-out" onclick="restartGame()">Ещё раз</button>
+   </div>
+ </div>
+ 
+ <!-- QUIT MODAL -->
+ <div id="quitModal" class="overlay">
+   <div class="modal">
+     <div class="m-emoji">🚪</div>
+     <div class="m-title">Выйти?</div>
+     <div class="m-text">Прогресс будет потерян</div>
+     <button class="btn btn-red" onclick="backMenu()">Выйти</button>
+     <button class="btn btn-out" onclick="closeModal('quitModal')">Продолжить</button>
+   </div>
+ </div>
+ 
+ <div class="toast" id="toast"></div>
+ 
+ <script>
+ const socket = io();
+-let G = null, myIdx = 0, mode = null, sel = null, stackSz = 10, lastCfg = null;
++let G = null, myIdx = 0, mode = null, sel = null, stackSz = 10, onlineStackSz = 10, lastCfg = null;
+ 
+ // ---- UTILS ----
+ function showScreen(id) {
+   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+   document.getElementById(id).classList.add('active');
+ }
+ function closeModal(id) { document.getElementById(id).classList.remove('on'); }
+ function toast(msg, type='') {
+   const t = document.getElementById('toast');
+   t.textContent = msg; t.className = 'toast on ' + type;
+   clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 2600);
+ }
+ function pickStack(el) {
+-  document.querySelectorAll('.sopt').forEach(b => b.classList.remove('sel'));
++  document.querySelectorAll('#menuScreen .sopt').forEach(b => b.classList.remove('sel'));
+   el.classList.add('sel'); stackSz = parseInt(el.dataset.v);
+ }
++function pickOnlineStack(el) {
++  document.querySelectorAll('#onlineScreen .online-sopt').forEach(b => b.classList.remove('sel'));
++  el.classList.add('sel'); onlineStackSz = parseInt(el.dataset.v);
++}
+ function confirmQuit() { document.getElementById('quitModal').classList.add('on'); }
+ function copyCode() {
+   const code = document.getElementById('codeDisplay').textContent;
+   navigator.clipboard?.writeText(code).then(() => toast('Код скопирован!','ok'));
+ }
+ 
+ // ---- LADDER DISCARD SLOT ----
+ // Renders a discard pile as a stacked "ladder" of cards, all visible
+ // Each card peeks STEP px above the previous one; top card is fully shown
+ const STEP = 14; // px each card peeks out
++const MAX_LADDER_CARDS = 5;
+ function makeLadderSlot(cards, interactive, isGlow, isSel, idx) {
+   if (!cards || cards.length === 0) {
+     const empty = document.createElement('div');
+     empty.className = 'd-slot-empty' + (isGlow ? ' glow' : '');
+     empty.textContent = idx + 1;
+     return empty;
+   }
+   const CW = 48, CH = 68;
+-  const totalH = CH + (cards.length - 1) * STEP;
++  const visibleCards = cards.slice(-MAX_LADDER_CARDS);
++  const totalH = CH + (MAX_LADDER_CARDS - 1) * STEP;
+   const wrap = document.createElement('div');
+   wrap.className = 'd-slot' + (isGlow ? ' glow' : '');
+   wrap.style.cssText = `width:${CW}px;height:${totalH}px;position:relative;flex-shrink:0`;
+ 
+-  cards.forEach((n, i) => {
+-    const isTop = i === cards.length - 1;
++  visibleCards.forEach((n, i) => {
++    const isTop = i === visibleCards.length - 1;
+     const c = document.createElement('div');
+     c.className = (n === 0 ? 'card c0' : 'card c' + n);
+     c.textContent = n === 0 ? 'Skip-Bo' : String(n);
+     c.style.cssText = [
+       `position:absolute`,
+       `top:${i * STEP}px`,
+       `left:0`,
+       `width:${CW}px`,
+       `height:${CH}px`,
+       `pointer-events:none`,
+       `z-index:${i + 1}`,
+       `font-size:${isTop ? 22 : 16}px`,
+       isTop && isSel ? 'transform:translateY(-8px) scale(1.05);border-color:var(--gold)!important;box-shadow:0 4px 14px rgba(245,166,35,.55)' : ''
+     ].filter(Boolean).join(';');
+     if (isTop) c.classList.add('d-ladder-top');
+     wrap.appendChild(c);
+   });
+ 
+   return wrap;
+ }
+ 
+ // ---- RENDER ----
+ // ---- CARD HELPERS ----
+ function cCls(n) { return n === 0 ? 'card c0' : 'card c' + n; }
+ function cTxt(n) { return n === 0 ? 'Skip-Bo' : String(n); }
+@@ -500,51 +513,51 @@ function tapDiscard(d) {
+   if (me.discardPiles[d] === null) return;
+   sel = { src:'discard', idx:d }; render();
+ }
+ function doPlayToBuild(b) {
+   if (!sel) return;
+   socket.emit(mode==='computer'?'play_to_build':'online_play_to_build',
+     { cardSource:sel.src, cardIndex:sel.idx, buildPileIndex:b });
+   sel = null;
+ }
+ function doDiscard(d) {
+   if (!sel || sel.src !== 'hand') return;
+   socket.emit(mode==='computer'?'discard_card':'online_discard_card',
+     { cardIndex:sel.idx, discardPileIndex:d });
+   sel = null;
+ }
+ 
+ // ---- GAME START ----
+ function startVsPC() {
+   const name = document.getElementById('playerName').value.trim() || 'Игрок';
+   mode = 'computer'; myIdx = 0;
+   lastCfg = { name, stackSize:stackSz };
+   socket.emit('start_vs_computer', { stackSize:stackSz, playerName:name });
+ }
+ function createRoom() {
+   const name = document.getElementById('playerName').value.trim() || 'Игрок 1';
+-  socket.emit('create_room', { stackSize:stackSz, playerName:name });
++  socket.emit('create_room', { stackSize:onlineStackSz, playerName:name });
+ }
+ function joinRoom() {
+   const code = document.getElementById('roomIn').value.trim().toUpperCase();
+   if (code.length < 4) { toast('Введите код','err'); return; }
+   const name = document.getElementById('playerName').value.trim() || 'Игрок 2';
+   socket.emit('join_room', { roomId:code, playerName:name });
+ }
+ function backMenu() {
+   closeModal('winModal'); closeModal('quitModal');
+   G = null; sel = null; showScreen('menuScreen');
+ }
+ function restartGame() {
+   closeModal('winModal');
+   if (mode==='computer' && lastCfg) socket.emit('start_vs_computer', { stackSize:lastCfg.stackSize, playerName:lastCfg.name });
+   else backMenu();
+ }
+ function showWin(wi, wn) {
+   const iMe = wi === myIdx;
+   document.getElementById('wEmoji').textContent = iMe ? '🏆' : '😞';
+   document.getElementById('wTitle').textContent = iMe ? 'Победа!' : 'Поражение';
+   document.getElementById('wText').textContent = iMe
+     ? 'Поздравляем! Вы первым избавились от стопки!'
+     : wn + ' первым избавился от стопки. Попробуйте ещё!';
+   document.getElementById('winModal').classList.add('on');
+ }
